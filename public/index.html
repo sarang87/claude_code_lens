@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Claude Code Lens</title>
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <header id="app-header">
+      <div id="title">🔬 Claude Code Lens</div>
+      <select id="sessionId" aria-label="Session selector"></select>
+      <select id="nodeFilter" aria-label="Node filter">
+        <option value="all">Show All</option>
+        <option value="user">👤 User Prompts</option>
+        <option value="ai">🤖 AI Responses</option>
+      </select>
+      <button id="configToggle" class="secondary-btn">⚙️ Config</button>
+    </header>
+
+    <section id="config-drawer" class="hidden">
+      <input id="projectsPath" type="text" value="~/.claude/projects" />
+      <button id="scanBtn">SCAN</button>
+      <label class="secondary-btn" for="jsonlUpload">📂 Browse JSONL</label>
+      <input id="jsonlUpload" type="file" accept=".jsonl" />
+    </section>
+
+    <section id="timeline-container"></section>
+
+    <section id="inspector">
+      <div class="panel">
+        <h3>ℹ️ METADATA</h3>
+        <div id="metadataPanel" class="small-text"></div>
+      </div>
+      <div class="panel">
+        <h3 id="reasoningTitle">🧠 REASONING &amp; ACTIONS</h3>
+        <div id="reasoningPanel"></div>
+      </div>
+      <div class="panel">
+        <h3 id="artifactsTitle">📦 ARTIFACTS &amp; DIFFS</h3>
+        <div id="artifactsPanel"></div>
+      </div>
+    </section>
+
+    <div id="commentModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <h3>📝 Node Comment</h3>
+        <p>Add context, review notes, or tags</p>
+        <textarea id="commentInput" rows="7"></textarea>
+        <div class="modal-actions">
+          <button id="cancelComment" class="secondary-btn">Cancel</button>
+          <button id="saveComment">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/js/state.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/renderer.js"></script>
+    <script src="/js/app.js"></script>
+  </body>
+</html>
