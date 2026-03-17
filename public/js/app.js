@@ -79,6 +79,12 @@ async function initSessions() {
     option.textContent = `[${session.id.slice(0, 8)}] ${session.preview}`;
     sessionSelect.appendChild(option);
   }
+  if (data.sessions.length > 0) {
+    const hint = document.createElement("option");
+    hint.disabled = true;
+    hint.textContent = "💡 Use /rename in Claude Code to name sessions";
+    sessionSelect.appendChild(hint);
+  }
 
   if (data.sessions.length > 0) {
     await fetchDataAndInitialize();

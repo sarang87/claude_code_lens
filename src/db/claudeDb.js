@@ -75,6 +75,14 @@ function isAssistantEvent(event) {
 }
 
 function normalizeSessionPreview(events) {
+  // Prefer user-set name via /rename (custom-title event, most recent wins)
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const ev = events[i];
+    if (ev?.type === "custom-title" && typeof ev?.customTitle === "string" && ev.customTitle.trim()) {
+      return ev.customTitle.trim();
+    }
+  }
+  // Fall back to first user message text
   for (const event of events) {
     const blocks = event?.message?.content;
     if (!isUserEvent(event) || !Array.isArray(blocks)) continue;
