@@ -424,6 +424,20 @@ function parseSessionFile(sessionPath) {
         if (fc) modifiedFiles.push(fc);
       }
 
+      const rawUsage = event?.message?.usage || {};
+      const inputTokens = rawUsage.input_tokens || 0;
+      const cacheCreatedTokens = (rawUsage.cache_creation_input_tokens || 0) +
+        (rawUsage.cache_creation?.ephemeral_1h_input_tokens || 0);
+      const cacheReadTokens = rawUsage.cache_read_input_tokens || 0;
+      const outputTokens = rawUsage.output_tokens || 0;
+      const tokenUsage = {
+        inputTokens,
+        cacheCreatedTokens,
+        cacheReadTokens,
+        outputTokens,
+        totalContextTokens: inputTokens + cacheCreatedTokens + cacheReadTokens,
+      };
+
       const msg = {
         id: eventUuid,
         timestamp,
@@ -437,6 +451,7 @@ function parseSessionFile(sessionPath) {
         isToolResult: false,
         hasTextContent: textBlocks.length > 0,
         cwd,
+        tokenUsage,
       };
 
       // Register all tool calls for later tool-result pairing

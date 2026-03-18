@@ -112,15 +112,86 @@ function selectGroup(nodeId) {
   renderArtifacts(group);
 }
 
+const CONTEXT_WINDOW_SIZE = 200000;
+
+function fmtTokens(n) {
+  if (!n) return "0";
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(n);
+}
+
+function renderContextBar(totalContextTokens) {
+  const pct = Math.min(100, (totalContextTokens / CONTEXT_WINDOW_SIZE) * 100);
+  const color = pct > 80 ? "#f87171" : pct > 50 ? "#fbbf24" : "#34d399";
+  return `
+    <div class="token-section">
+      <div class="token-section-title">CONTEXT WINDOW</div>
+      <div class="ctx-bar-track">
+        <div class="ctx-bar-fill" style="width:${pct.toFixed(1)}%;background:${color};"></div>
+      </div>
+      <div class="ctx-bar-label">
+        <span style="color:${color};font-weight:700">${fmtTokens(totalContextTokens)}</span>
+        <span style="color:#475569"> / ${fmtTokens(CONTEXT_WINDOW_SIZE)} tokens (${pct.toFixed(1)}%)</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderTokenBlock(usage) {
+  if (!usage) return "";
+  const { inputTokens, cacheCreatedTokens, cacheReadTokens, outputTokens, totalContextTokens } = usage;
+  return `
+    <div class="token-section">
+      <div class="token-section-title">TOKEN USAGE</div>
+      <div class="token-grid">
+        <div class="token-cell">
+          <div class="token-val" style="color:#60a5fa">${fmtTokens(outputTokens)}</div>
+          <div class="token-key">Output</div>
+        </div>
+        <div class="token-cell">
+          <div class="token-val" style="color:#f8fafc">${fmtTokens(inputTokens)}</div>
+          <div class="token-key">Input (new)</div>
+        </div>
+        <div class="token-cell">
+          <div class="token-val" style="color:#34d399">${fmtTokens(cacheReadTokens)}</div>
+          <div class="token-key">Cache read</div>
+        </div>
+        <div class="token-cell">
+          <div class="token-val" style="color:#e879f9">${fmtTokens(cacheCreatedTokens)}</div>
+          <div class="token-key">Cache write</div>
+        </div>
+      </div>
+    </div>
+    ${renderContextBar(totalContextTokens)}
+  `;
+}
+
 function renderMetadata(group) {
   const panel = document.getElementById("metadataPanel");
 
   if (group.isSegmentDivider) {
+    // Aggregate token usage across all intermediate messages
+    let totalOutput = 0;
+    let peakContext = 0;
+    for (const msg of group.items) {
+      if (msg.tokenUsage) {
+        totalOutput += msg.tokenUsage.outputTokens;
+        peakContext = Math.max(peakContext, msg.tokenUsage.totalContextTokens);
+      }
+    }
+    const aggUsage = peakContext > 0
+      ? { outputTokens: totalOutput, inputTokens: 0, cacheCreatedTokens: 0, cacheReadTokens: 0, totalContextTokens: peakContext }
+      : null;
+
     panel.innerHTML = `
       <div class="metadata-row"><span class="label">TYPE:</span> <span class="value" style="color:#f59e0b;font-weight:700">SEGMENT DIVIDER</span></div>
       <div class="metadata-row"><span class="label">STEPS:</span> <span class="value">${group.totalSteps}</span></div>
       <div class="metadata-row"><span class="label">GROUPS:</span> <span class="value">${group.subGroups.length}</span></div>
       <div class="metadata-row"><span class="label">CWD:</span> <span class="value" style="color:#64748b">${escapeHtml(State.sessionMeta.cwd || "")}</span></div>
+      ${aggUsage ? `
+        <div class="metadata-row" style="margin-top:4px"><span class="label">OUTPUT TOKENS:</span> <span class="value" style="color:#60a5fa;font-weight:700">${fmtTokens(aggUsage.outputTokens)}</span></div>
+        ${renderContextBar(aggUsage.totalContextTokens)}
+      ` : ""}
     `;
     return;
   }
@@ -140,6 +211,7 @@ function renderMetadata(group) {
     <div class="metadata-row"><span class="label">NODE TYPE:</span> <span class="value" style="color:${nodeTypeColor};font-weight:700;text-transform:uppercase">${escapeHtml(nodeTypeLabel)}</span></div>
     ${toolNames ? `<div class="metadata-row"><span class="label">TOOL NAME:</span> <span class="value" style="color:#fb923c">${escapeHtml(toolNames)}</span></div>` : ""}
     <div class="metadata-row"><span class="label">CWD:</span> <span class="value" style="color:#64748b">${escapeHtml(msg.cwd || State.sessionMeta.cwd || "")}</span></div>
+    ${!isUser ? renderTokenBlock(msg.tokenUsage) : ""}
   `;
 }
 

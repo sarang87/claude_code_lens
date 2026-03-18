@@ -323,6 +323,18 @@ button:hover {
 .metadata-row .label { color: var(--text-dim); }
 .metadata-row .value { color: var(--text-primary); }
 
+/* ─── Token usage display ─── */
+
+.token-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); }
+.token-section-title { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.8px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
+.token-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 4px; }
+.token-cell { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 7px 10px; }
+.token-val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; font-weight: 700; line-height: 1.2; }
+.token-key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+.ctx-bar-track { height: 6px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden; margin-bottom: 5px; }
+.ctx-bar-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+.ctx-bar-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+
 /* Reasoning panel elements */
 
 .reasoning-block {
