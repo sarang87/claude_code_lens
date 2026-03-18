@@ -188,6 +188,7 @@ function renderMetadata(group) {
       <div class="metadata-row"><span class="label">STEPS:</span> <span class="value">${group.totalSteps}</span></div>
       <div class="metadata-row"><span class="label">GROUPS:</span> <span class="value">${group.subGroups.length}</span></div>
       <div class="metadata-row"><span class="label">CWD:</span> <span class="value" style="color:#64748b">${escapeHtml(State.sessionMeta.cwd || "")}</span></div>
+      ${State.sessionMeta.gitBranch ? `<div class="metadata-row"><span class="label">GIT BRANCH:</span> <span class="value" style="color:#34d399">⎇ ${escapeHtml(State.sessionMeta.gitBranch)}</span>${State.sessionMeta.gitCommit ? ` <span style="color:#475569;font-family:ui-monospace,monospace;font-size:11px;">${escapeHtml(State.sessionMeta.gitCommit)}</span>` : ""}</div>` : ""}
       ${aggUsage ? `
         <div class="metadata-row" style="margin-top:4px"><span class="label">OUTPUT TOKENS:</span> <span class="value" style="color:#60a5fa;font-weight:700">${fmtTokens(aggUsage.outputTokens)}</span></div>
         ${renderContextBar(aggUsage.totalContextTokens)}
@@ -211,6 +212,7 @@ function renderMetadata(group) {
     <div class="metadata-row"><span class="label">NODE TYPE:</span> <span class="value" style="color:${nodeTypeColor};font-weight:700;text-transform:uppercase">${escapeHtml(nodeTypeLabel)}</span></div>
     ${toolNames ? `<div class="metadata-row"><span class="label">TOOL NAME:</span> <span class="value" style="color:#fb923c">${escapeHtml(toolNames)}</span></div>` : ""}
     <div class="metadata-row"><span class="label">CWD:</span> <span class="value" style="color:#64748b">${escapeHtml(msg.cwd || State.sessionMeta.cwd || "")}</span></div>
+    ${msg.gitBranch ? `<div class="metadata-row"><span class="label">GIT BRANCH:</span> <span class="value" style="color:#34d399">⎇ ${escapeHtml(msg.gitBranch)}</span>${msg.gitCommit ? ` <span style="color:#475569;font-family:ui-monospace,monospace;font-size:11px;">${escapeHtml(msg.gitCommit)}</span>` : ""}</div>` : ""}
     ${!isUser ? renderTokenBlock(msg.tokenUsage) : ""}
     ${isUser && msg.contextAtSend ? `
       <div class="token-section">
