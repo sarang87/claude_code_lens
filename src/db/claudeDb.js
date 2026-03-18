@@ -21,22 +21,45 @@ const TOOL_LABELS = {
 };
 
 function resolveGitInfo(dir) {
-  if (!dir) return { branch: null, commits: [] };
+  if (!dir) return { branch: null, commits: [], branchHistory: [] };
   try {
     const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: dir, stdio: "pipe", timeout: 2000 })
       .toString().trim() || null;
-    // Load full commit timeline (hash + ISO timestamp) newest-first, one git call per session
-    // Use execFileSync with args array to avoid shell interpreting | as a pipe
+    // Load full commit timeline (hash + ISO timestamp) newest-first
     const logRaw = execFileSync('git', ['log', '--format=%H %aI'], { cwd: dir, stdio: "pipe", timeout: 5000 })
       .toString().trim();
     const commits = logRaw ? logRaw.split("\n").map((line) => {
       const [hash, ts] = line.split(" ");
       return { hash: (hash || "").trim(), ts: new Date((ts || "").trim()).getTime() };
     }).filter((c) => c.hash && !Number.isNaN(c.ts)) : [];
-    return { branch, commits };
+    // Build branch-switch timeline from reflog (newest-first)
+    const reflogRaw = execFileSync('git', ['reflog', '--format=%aI %gs'], { cwd: dir, stdio: "pipe", timeout: 5000 })
+      .toString().trim();
+    const branchHistory = [];
+    for (const line of reflogRaw.split("\n")) {
+      const m = line.match(/^(\S+) checkout: moving from (\S+) to (\S+)$/);
+      if (m) {
+        const ts = new Date(m[1]).getTime();
+        if (!Number.isNaN(ts)) branchHistory.push({ ts, fromBranch: m[2], toBranch: m[3] });
+      }
+    }
+    return { branch, commits, branchHistory };
   } catch (_) {
-    return { branch: null, commits: [] };
+    return { branch: null, commits: [], branchHistory: [] };
   }
+}
+
+// Infer branch active at a given ISO timestamp using reflog history
+function branchAtTime(branchHistory, timestamp, currentBranch) {
+  if (!branchHistory.length || !timestamp) return currentBranch;
+  const t = new Date(timestamp).getTime();
+  if (Number.isNaN(t)) return currentBranch;
+  // branchHistory is newest-first; find most recent checkout at or before t
+  for (const b of branchHistory) {
+    if (b.ts <= t) return b.toBranch;
+  }
+  // Before any recorded branch switch: we were on the fromBranch of the oldest entry
+  return branchHistory[branchHistory.length - 1].fromBranch;
 }
 
 // Find the short commit hash that was HEAD at a given ISO timestamp
@@ -432,7 +455,7 @@ function parseSessionFile(sessionPath) {
         isToolResult,
         hasTextContent,
         cwd: event?.cwd || cwd,
-        gitBranch: gitInfo.branch,
+        gitBranch: branchAtTime(gitInfo.branchHistory, timestamp, gitInfo.branch),
         gitCommit: commitAtTime(gitInfo.commits, timestamp),
       });
 
@@ -497,7 +520,7 @@ function parseSessionFile(sessionPath) {
         hasTextContent: textBlocks.length > 0,
         cwd,
         tokenUsage,
-        gitBranch: gitInfo.branch,
+        gitBranch: branchAtTime(gitInfo.branchHistory, timestamp, gitInfo.branch),
         gitCommit: commitAtTime(gitInfo.commits, timestamp),
       };
 
