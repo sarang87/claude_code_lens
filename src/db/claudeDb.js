@@ -84,10 +84,15 @@ function normalizeSessionPreview(events) {
   }
   // Fall back to first user message text
   for (const event of events) {
-    const blocks = event?.message?.content;
-    if (!isUserEvent(event) || !Array.isArray(blocks)) continue;
-    const textBlock = blocks.find((b) => b?.type === "text" && typeof b?.text === "string");
-    if (textBlock?.text) return truncateText(textBlock.text, 65);
+    if (!isUserEvent(event)) continue;
+    const content = event?.message?.content;
+    // String content (seen in newer Claude Code sessions)
+    if (typeof content === "string" && content.trim()) return truncateText(content.trim(), 65);
+    // Array content
+    if (Array.isArray(content)) {
+      const textBlock = content.find((b) => b?.type === "text" && typeof b?.text === "string");
+      if (textBlock?.text) return truncateText(textBlock.text, 65);
+    }
   }
   return "(No user prompt found)";
 }
@@ -322,8 +327,14 @@ function parseSessionFile(sessionPath) {
   let currentModel = latestModel;
 
   for (const event of events) {
-    const blocks = event?.message?.content;
-    if (!Array.isArray(blocks)) continue;
+    const rawContent = event?.message?.content;
+
+    // Normalize: string content → single text block array
+    const blocks = typeof rawContent === "string"
+      ? [{ type: "text", text: rawContent }]
+      : Array.isArray(rawContent) ? rawContent : null;
+
+    if (!blocks) continue;
 
     const eventUuid = String(event?.uuid || `msg-${Date.now()}-${Math.random()}`);
     const timestamp = event?.timestamp || null;
