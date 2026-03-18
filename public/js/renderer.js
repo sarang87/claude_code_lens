@@ -184,12 +184,24 @@ function renderMetadata(group) {
       : null;
 
     panel.innerHTML = `
-      <div class="metadata-row"><span class="label">TYPE:</span> <span class="value" style="color:#f59e0b;font-weight:700">SEGMENT DIVIDER</span></div>
-      <div class="metadata-row"><span class="label">STEPS:</span> <span class="value">${group.totalSteps}</span></div>
-      <div class="metadata-row"><span class="label">GROUPS:</span> <span class="value">${group.subGroups.length}</span></div>
-      <div class="metadata-row"><span class="label">CWD:</span> <span class="value" style="color:#64748b">${escapeHtml(State.sessionMeta.cwd || "")}</span></div>
+      <div class="metadata-row"><span class="label">TYPE</span><span class="meta-badge" style="background:#f59e0b22;color:#f59e0b;border-color:#f59e0b44">SEGMENT DIVIDER</span></div>
+      <div class="metadata-row"><span class="label">STEPS</span> <span class="value">${group.totalSteps}</span></div>
+      <div class="metadata-row"><span class="label">GROUPS</span> <span class="value">${group.subGroups.length}</span></div>
+      <div class="metadata-row"><span class="label">CWD</span> <span class="value" style="color:#64748b">${escapeHtml(State.sessionMeta.cwd || "")}</span></div>
+      ${(() => {
+        // Use the branch from the first message in the segment, not the current session branch
+        const firstMsg = group.items[0];
+        const gb = firstMsg?.gitBranch || State.sessionMeta.gitBranch;
+        const gc = firstMsg?.gitCommit || State.sessionMeta.gitCommit;
+        return gb ? `
+      <div class="metadata-row">
+        <span class="label">BRANCH</span>
+        <span class="git-branch-badge">⎇ ${escapeHtml(gb)}</span>
+        ${gc ? `<span class="git-commit-chip">${escapeHtml(gc)}</span>` : ""}
+      </div>` : "";
+      })()}
       ${aggUsage ? `
-        <div class="metadata-row" style="margin-top:4px"><span class="label">OUTPUT TOKENS:</span> <span class="value" style="color:#60a5fa;font-weight:700">${fmtTokens(aggUsage.outputTokens)}</span></div>
+        <div class="metadata-row" style="margin-top:4px"><span class="label">OUTPUT</span> <span class="value" style="color:#60a5fa;font-weight:700">${fmtTokens(aggUsage.outputTokens)} tokens</span></div>
         ${renderContextBar(aggUsage.totalContextTokens)}
       ` : ""}
     `;
@@ -204,20 +216,32 @@ function renderMetadata(group) {
     ? msg.toolCalls.map((t) => t.name).join(", ")
     : null;
 
+  const cwdFull = msg.cwd || State.sessionMeta.cwd || "";
+  const cwdParts = cwdFull.split("/").filter(Boolean);
+  const cwdShort = cwdParts.length > 3 ? "…/" + cwdParts.slice(-3).join("/") : cwdFull;
+  const idShort = msg.id ? msg.id.slice(0, 8) : "—";
+
   panel.innerHTML = `
-    <div class="metadata-row"><span class="label">ID:</span> <span class="value">${escapeHtml(msg.id)}</span></div>
-    <div class="metadata-row"><span class="label">SYS_TIME:</span> <span class="value">${escapeHtml(formatTimestamp(msg.timestamp))}</span></div>
-    <div class="metadata-row"><span class="label">MODEL:</span> <span class="value" style="color:#38bdf8;font-weight:700">${escapeHtml(msg.model || "Unknown Model")}</span></div>
-    <div class="metadata-row"><span class="label">NODE TYPE:</span> <span class="value" style="color:${nodeTypeColor};font-weight:700;text-transform:uppercase">${escapeHtml(nodeTypeLabel)}</span></div>
-    ${toolNames ? `<div class="metadata-row"><span class="label">TOOL NAME:</span> <span class="value" style="color:#fb923c">${escapeHtml(toolNames)}</span></div>` : ""}
-    <div class="metadata-row"><span class="label">CWD:</span> <span class="value" style="color:#64748b">${escapeHtml(msg.cwd || State.sessionMeta.cwd || "")}</span></div>
+    <div class="metadata-row">
+      <span class="label">TYPE</span>
+      <span class="value meta-badge" style="background:${nodeTypeColor}22;color:${nodeTypeColor};border-color:${nodeTypeColor}44">${escapeHtml(nodeTypeLabel.toUpperCase())}</span>
+    </div>
+    <div class="metadata-row"><span class="label">TIME</span> <span class="value">${escapeHtml(formatTimestamp(msg.timestamp))}</span></div>
+    <div class="metadata-row"><span class="label">MODEL</span> <span class="value" style="color:#38bdf8">${escapeHtml(msg.model || "Unknown Model")}</span></div>
+    <div class="metadata-row"><span class="label">ID</span> <span class="value" style="color:#475569" title="${escapeHtml(msg.id || "")}">${escapeHtml(idShort)}…</span></div>
+    ${toolNames ? `<div class="metadata-row"><span class="label">TOOLS</span> <span class="value" style="color:#fb923c">${escapeHtml(toolNames)}</span></div>` : ""}
+    <div class="meta-divider"></div>
+    <div class="metadata-row"><span class="label">CWD</span> <span class="value" style="color:#64748b" title="${escapeHtml(cwdFull)}">${escapeHtml(cwdShort)}</span></div>
+    ${msg.gitBranch ? `
+    <div class="metadata-row">
+      <span class="label">BRANCH</span>
+      <span class="git-branch-badge">⎇ ${escapeHtml(msg.gitBranch)}</span>
+      ${msg.gitCommit ? `<span class="git-commit-chip">${escapeHtml(msg.gitCommit)}</span>` : ""}
+    </div>` : ""}
     ${!isUser ? renderTokenBlock(msg.tokenUsage) : ""}
     ${isUser && msg.contextAtSend ? `
       <div class="token-section">
-        <div class="token-section-title">CONTEXT WINDOW AT SEND</div>
-        <div style="font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin-bottom:8px;">
-          Context Claude saw when this prompt was processed
-        </div>
+        <div class="token-section-title">CONTEXT AT SEND</div>
         ${renderContextBar(msg.contextAtSend)}
       </div>
     ` : ""}

@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { execSync, execFileSync } = require("child_process");
 
 const MAX_DIFF_LINES = 800;
 const CONTEXT = 3;
@@ -18,6 +19,60 @@ const TOOL_LABELS = {
   TodoWrite: "Task Update",
   NotebookEdit: "Notebook Edit",
 };
+
+function resolveGitInfo(dir) {
+  if (!dir) return { branch: null, commits: [], branchHistory: [] };
+  try {
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: dir, stdio: "pipe", timeout: 2000 })
+      .toString().trim() || null;
+    // Load full commit timeline (hash + ISO timestamp) newest-first
+    const logRaw = execFileSync('git', ['log', '--format=%H %aI'], { cwd: dir, stdio: "pipe", timeout: 5000 })
+      .toString().trim();
+    const commits = logRaw ? logRaw.split("\n").map((line) => {
+      const [hash, ts] = line.split(" ");
+      return { hash: (hash || "").trim(), ts: new Date((ts || "").trim()).getTime() };
+    }).filter((c) => c.hash && !Number.isNaN(c.ts)) : [];
+    // Build branch-switch timeline from reflog (newest-first)
+    const reflogRaw = execFileSync('git', ['reflog', '--format=%aI %gs'], { cwd: dir, stdio: "pipe", timeout: 5000 })
+      .toString().trim();
+    const branchHistory = [];
+    for (const line of reflogRaw.split("\n")) {
+      const m = line.match(/^(\S+) checkout: moving from (\S+) to (\S+)$/);
+      if (m) {
+        const ts = new Date(m[1]).getTime();
+        if (!Number.isNaN(ts)) branchHistory.push({ ts, fromBranch: m[2], toBranch: m[3] });
+      }
+    }
+    return { branch, commits, branchHistory };
+  } catch (_) {
+    return { branch: null, commits: [], branchHistory: [] };
+  }
+}
+
+// Infer branch active at a given ISO timestamp using reflog history
+function branchAtTime(branchHistory, timestamp, currentBranch) {
+  if (!branchHistory.length || !timestamp) return currentBranch;
+  const t = new Date(timestamp).getTime();
+  if (Number.isNaN(t)) return currentBranch;
+  // branchHistory is newest-first; find most recent checkout at or before t
+  for (const b of branchHistory) {
+    if (b.ts <= t) return b.toBranch;
+  }
+  // Before any recorded branch switch: we were on the fromBranch of the oldest entry
+  return branchHistory[branchHistory.length - 1].fromBranch;
+}
+
+// Find the short commit hash that was HEAD at a given ISO timestamp
+function commitAtTime(commits, timestamp) {
+  if (!commits.length || !timestamp) return null;
+  const t = new Date(timestamp).getTime();
+  if (Number.isNaN(t)) return null;
+  // commits are newest-first; find the first whose time <= message time
+  for (const c of commits) {
+    if (c.ts <= t) return c.hash.slice(0, 7);
+  }
+  return commits[commits.length - 1].hash.slice(0, 7);
+}
 
 function expandHome(inputPath) {
   if (!inputPath) return inputPath;
@@ -279,13 +334,22 @@ function propagateFilesToLastAiResponse(messages) {
   if (current.length > 0) exchanges.push(current);
 
   for (const exchange of exchanges) {
-    const exchangeFiles = [];
-    const seen = new Set();
+    const fileMap = new Map();
     for (const m of exchange) {
-      for (const f of m.modifiedFiles) {
-        if (!seen.has(f.path)) { seen.add(f.path); exchangeFiles.push(f); }
+      for (const fc of m.modifiedFiles) {
+        if (!fileMap.has(fc.path)) {
+          fileMap.set(fc.path, { ...fc });
+        } else {
+          const existing = fileMap.get(fc.path);
+          existing.linesAdded += fc.linesAdded;
+          existing.linesRemoved += fc.linesRemoved;
+          existing.diffText = (existing.diffText && fc.diffText)
+            ? existing.diffText + '\n' + fc.diffText
+            : (existing.diffText || fc.diffText || '');
+        }
       }
     }
+    const exchangeFiles = [...fileMap.values()];
     if (exchangeFiles.length === 0) continue;
 
     // Find the last assistant turn in this exchange
@@ -312,6 +376,7 @@ function parseSessionFile(sessionPath) {
   const firstUser = events.find((e) => isUserEvent(e));
   const cwd = firstUser?.cwd || "";
   const preview = normalizeSessionPreview(events);
+  const gitInfo = resolveGitInfo(cwd);
 
   // Forward-propagate model: first model seen on any assistant turn
   let latestModel = "Unknown Model";
@@ -390,6 +455,8 @@ function parseSessionFile(sessionPath) {
         isToolResult,
         hasTextContent,
         cwd: event?.cwd || cwd,
+        gitBranch: branchAtTime(gitInfo.branchHistory, timestamp, gitInfo.branch),
+        gitCommit: commitAtTime(gitInfo.commits, timestamp),
       });
 
     } else if (isAssistantEvent(event)) {
@@ -453,6 +520,8 @@ function parseSessionFile(sessionPath) {
         hasTextContent: textBlocks.length > 0,
         cwd,
         tokenUsage,
+        gitBranch: branchAtTime(gitInfo.branchHistory, timestamp, gitInfo.branch),
+        gitCommit: commitAtTime(gitInfo.commits, timestamp),
       };
 
       // Register all tool calls for later tool-result pairing
@@ -496,6 +565,8 @@ function parseSessionFile(sessionPath) {
       cwd,
       model: latestModel,
       path: sessionPath,
+      gitBranch: gitInfo.branch,
+      gitCommit: gitInfo.commits[0]?.hash.slice(0, 7) || null,
     },
   };
 }
