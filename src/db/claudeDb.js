@@ -32,12 +32,16 @@ function resolveGitInfo(dir) {
       const [hash, ts] = line.split(" ");
       return { hash: (hash || "").trim(), ts: new Date((ts || "").trim()).getTime() };
     }).filter((c) => c.hash && !Number.isNaN(c.ts)) : [];
-    // Build branch-switch timeline from reflog (newest-first)
-    const reflogRaw = execFileSync('git', ['reflog', '--format=%aI %gs'], { cwd: dir, stdio: "pipe", timeout: 5000 })
+    // Build branch-switch timeline from reflog (newest-first).
+    // Use %gd with --date=iso-strict to get the ACTUAL time the checkout action
+    // happened, not %aI which gives the author date of the commit (can be identical
+    // across multiple checkouts pointing to the same commit, breaking ordering).
+    const reflogRaw = execFileSync('git', ['reflog', '--date=iso-strict', '--format=%gd %gs'], { cwd: dir, stdio: "pipe", timeout: 5000 })
       .toString().trim();
     const branchHistory = [];
     for (const line of reflogRaw.split("\n")) {
-      const m = line.match(/^(\S+) checkout: moving from (\S+) to (\S+)$/);
+      // %gd looks like: HEAD@{2026-03-18T01:32:08-04:00}
+      const m = line.match(/^HEAD@\{([^}]+)\} checkout: moving from (\S+) to (\S+)$/);
       if (m) {
         const ts = new Date(m[1]).getTime();
         if (!Number.isNaN(ts)) branchHistory.push({ ts, fromBranch: m[2], toBranch: m[3] });
@@ -282,18 +286,21 @@ function buildFileChangeFromTool(toolName, toolInput) {
   if (!filePath || (toolName !== "Write" && toolName !== "Edit")) return null;
 
   if (toolName === "Write") {
-    const onDiskExists = fs.existsSync(filePath);
-    const oldContent = onDiskExists ? fs.readFileSync(filePath, "utf8") : "";
+    // We deliberately do NOT read the file from disk — at parse time the file
+    // may have been modified after the session ran, producing a wrong diff.
+    // Instead, show the written content as all-additions so the viewer sees
+    // exactly what was written, regardless of the file's current state.
     const newContent = String(toolInput?.content || "");
-    const diff = diffContents(oldContent, newContent);
+    const newLines = newContent.split(/\r?\n/);
+    const diffText = newLines.map((l) => `+${l}`).join("\n");
     return {
       name: path.basename(filePath),
       path: filePath,
-      isNew: !onDiskExists,
-      linesAdded: diff.linesAdded,
-      linesRemoved: diff.linesRemoved,
-      diffText: diff.diffText,
-      kind: !onDiskExists ? "NEW FILE" : "EDITED",
+      isNew: false,
+      linesAdded: newLines.length,
+      linesRemoved: 0,
+      diffText,
+      kind: "WRITTEN",
     };
   }
 

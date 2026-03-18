@@ -383,8 +383,8 @@ function renderArtifacts(group) {
 
   // Clickable diff cards for Write/Edit files (exchange-propagated)
   for (const fc of msg.modifiedFiles || []) {
-    const badgeClass = fc.isNew ? "badge-new" : "badge-edit";
-    const badgeText = fc.isNew ? "✨ NEW FILE" : "✏️ EDITED";
+    const badgeClass = fc.kind === "WRITTEN" ? "badge-new" : fc.kind === "NEW FILE" ? "badge-new" : "badge-edit";
+    const badgeText = fc.kind === "WRITTEN" ? "📝 WRITTEN" : fc.kind === "NEW FILE" ? "✨ NEW FILE" : "✏️ EDITED";
     parts.push(`
       <div class="diff-card" data-fc-path="${escapeHtml(fc.path)}">
         <div class="row-between">
@@ -439,7 +439,9 @@ function openFileDiff(fileChange) {
     return row;
   }).join("");
 
-  const badge = fileChange.isNew
+  const badge = fileChange.kind === "WRITTEN"
+    ? `<span class="viewer-badge new">📝 WRITTEN</span>`
+    : fileChange.kind === "NEW FILE"
     ? `<span class="viewer-badge new">✨ NEW FILE</span>`
     : `<span class="viewer-badge edit">✏️ EDITED</span>`;
 
