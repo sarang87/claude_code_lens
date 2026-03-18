@@ -426,8 +426,9 @@ function parseSessionFile(sessionPath) {
 
       const rawUsage = event?.message?.usage || {};
       const inputTokens = rawUsage.input_tokens || 0;
-      const cacheCreatedTokens = (rawUsage.cache_creation_input_tokens || 0) +
-        (rawUsage.cache_creation?.ephemeral_1h_input_tokens || 0);
+      // cache_creation_input_tokens is already the total; the cache_creation sub-object
+      // (ephemeral_1h, ephemeral_5m) is just a breakdown of the same number — do NOT add them.
+      const cacheCreatedTokens = rawUsage.cache_creation_input_tokens || 0;
       const cacheReadTokens = rawUsage.cache_read_input_tokens || 0;
       const outputTokens = rawUsage.output_tokens || 0;
       const tokenUsage = {
@@ -465,6 +466,18 @@ function parseSessionFile(sessionPath) {
 
   // Propagate all file changes to the last AI response in each exchange
   propagateFilesToLastAiResponse(messages);
+
+  // For each user message, attach the context window size from the next assistant
+  // message — this is the context Claude actually saw when processing that prompt.
+  for (let i = 0; i < messages.length; i += 1) {
+    if (messages[i].role !== "user") continue;
+    for (let j = i + 1; j < messages.length; j += 1) {
+      if (messages[j].role === "assistant" && messages[j].tokenUsage) {
+        messages[i].contextAtSend = messages[j].tokenUsage.totalContextTokens;
+        break;
+      }
+    }
+  }
 
   // Build flat fileChanges map (path → fc) for the diff viewer lookup
   const fileChanges = {};

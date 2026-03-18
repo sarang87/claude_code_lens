@@ -212,6 +212,15 @@ function renderMetadata(group) {
     ${toolNames ? `<div class="metadata-row"><span class="label">TOOL NAME:</span> <span class="value" style="color:#fb923c">${escapeHtml(toolNames)}</span></div>` : ""}
     <div class="metadata-row"><span class="label">CWD:</span> <span class="value" style="color:#64748b">${escapeHtml(msg.cwd || State.sessionMeta.cwd || "")}</span></div>
     ${!isUser ? renderTokenBlock(msg.tokenUsage) : ""}
+    ${isUser && msg.contextAtSend ? `
+      <div class="token-section">
+        <div class="token-section-title">CONTEXT WINDOW AT SEND</div>
+        <div style="font-family:ui-monospace,monospace;font-size:11px;color:#94a3b8;margin-bottom:8px;">
+          Context Claude saw when this prompt was processed
+        </div>
+        ${renderContextBar(msg.contextAtSend)}
+      </div>
+    ` : ""}
   `;
 }
 
